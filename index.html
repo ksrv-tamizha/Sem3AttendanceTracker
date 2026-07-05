@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Hub</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+
+    <div class="max-w-5xl mx-auto space-y-8">
+        
+        <header class="flex justify-between items-center bg-slate-900 text-white p-6 rounded-xl shadow-lg">
+            <div>
+                <h1 class="text-2xl font-bold tracking-tight">Attendance Hub</h1>
+                <p class="text-slate-400 text-sm mt-1">Logged in as: <span id="userNameDisplay" class="font-semibold text-emerald-400">Loading...</span></p>
+            </div>
+            <button onclick="loadData()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                Refresh Data
+            </button>
+        </header>
+
+        <div id="loadingIndicator" class="text-center py-12 hidden">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-emerald-500 rounded-full" role="status"></div>
+            <p class="mt-2 text-slate-500">Syncing with Google Sheets...</p>
+        </div>
+
+        <div id="mainContent" class="space-y-8 hidden">
+            
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold mb-4">Quick Log Absence</h2>
+                <form id="logForm" class="flex flex-wrap gap-4 items-end">
+                    <div class="flex-1 min-w-[150px]">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Date</label>
+                        <input type="date" id="logDate" required class="w-full p-2 border rounded-lg bg-slate-50">
+                    </div>
+                    <div class="flex-1 min-w-[200px]">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject</label>
+                        <select id="logSubject" required class="w-full p-2 border rounded-lg bg-slate-50">
+                            </select>
+                    </div>
+                    <div class="w-24">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Slots</label>
+                        <input type="number" id="logSlots" value="1" min="1" max="8" required class="w-full p-2 border rounded-lg bg-slate-50">
+                    </div>
+                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                        Mark Absent
+                    </button>
+                </form>
+            </section>
+
+            <section>
+                <h2 class="text-lg font-bold mb-4">Subject Status</h2>
+                <div id="dashboardGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    </div>
+            </section>
+
+            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+                <h2 class="text-lg font-bold mb-4">Weekly Timetable</h2>
+                <table class="w-full text-left text-sm whitespace-nowrap">
+                    <thead class="bg-slate-100 text-slate-600">
+                        <tr id="timetableHeaders">
+                            </tr>
+                    </thead>
+                    <tbody id="timetableBody" class="divide-y divide-slate-200">
+                        </tbody>
+                </table>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        // === CONFIGURATION ===
+        // PASTE YOUR DEPLOYED WEB APP URL HERE:
+        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyfQlnMQ7ksZv0Y5AEcRrfrdVnIlWVWNgToVX5azZxRKobJ3JMcMRP_L1NNyR4s50djYw/exec";
+        
+        // Setup URL Routing routing
+        const urlParams = new URLSearchParams(window.location.search);
+        const currentUser = urlParams.get('u') || 'Vicky';
+        
+        // DOM Elements
+        const uiLoading = document.getElementById('loadingIndicator');
+        const uiMain = document.getElementById('mainContent');
+        const uiUserName = document.getElementById('userNameDisplay');
+        
+        // Set Date Picker to Today automatically
+        document.getElementById('logDate').valueAsDate = new Date();
+        uiUserName.innerText = currentUser;
+
+        // Fetch Data on Load
+        window.onload = loadData;
+
+        async function loadData() {
+            uiLoading.classList.remove('hidden');
+            uiMain.classList.add('hidden');
+
+            try {
+                const response = await fetch(`${APPS_SCRIPT_URL}?action=getDashboard&u=${currentUser}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert("Database connection error: " + data.error);
+                    return;
+                }
+
+                renderDashboard(data.subjects);
+                populateDropdown(data.subjects);
+                renderTimetable(data.timetable);
+                
+                uiLoading.classList.add('hidden');
+                uiMain.classList.remove('hidden');
+            } catch (error) {
+                console.error("Fetch error: ", error);
+                alert("Failed to load data. Check console.");
+                uiLoading.classList.add('hidden');
+            }
+        }
+
+        function renderDashboard(subjects) {
+            const grid = document.getElementById('dashboardGrid');
+            grid.innerHTML = ''; 
+
+            subjects.forEach(sub => {
+                const conducted = Number(sub.total_conducted);
+                const attended = Number(sub.total_attended);
+                
+                // Formulas Matrix
+                let percentage = conducted > 0 ? ((attended / conducted) * 100).toFixed(1) : 100;
+                let safeMargin = conducted > 0 ? Math.floor((attended - (0.75 * conducted)) / 0.75) : 0;
+                
+                // Logic for styling
+                const isSafe = safeMargin >= 0;
+                const statusColor = isSafe ? 'text-emerald-500' : 'text-red-500';
+                const bgColor = isSafe ? 'bg-emerald-50' : 'bg-red-50';
+                const marginText = isSafe 
+                    ? `Safe to bunk: <b>${safeMargin}</b> classes` 
+                    : `Shortage: Need <b>${Math.abs(safeMargin)}</b> classes`;
+
+                const card = `
+                    <div class="p-5 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${sub.subject_code}</div>
+                            <h3 class="text-sm font-semibold text-slate-800 leading-tight mb-3 truncate" title="${sub.subject_name}">${sub.subject_name}</h3>
+                        </div>
+                        <div class="mt-4 p-3 rounded-lg ${bgColor}">
+                            <div class="flex justify-between items-end mb-1">
+                                <span class="text-2xl font-bold ${statusColor}">${percentage}%</span>
+                                <span class="text-xs text-slate-500">${attended}/${conducted} Attended</span>
+                            </div>
+                            <div class="text-xs text-slate-600 mt-2 pt-2 border-t border-slate-200/50">
+                                ${marginText}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                grid.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        function populateDropdown(subjects) {
+            const select = document.getElementById('logSubject');
+            select.innerHTML = '<option value="" disabled selected>Select a class...</option>';
+            subjects.forEach(sub => {
+                select.insertAdjacentHTML('beforeend', `<option value="${sub.subject_code}">${sub.subject_code} - ${sub.subject_name}</option>`);
+            });
+        }
+
+        function renderTimetable(timetableData) {
+            const headers = timetableData[0]; // First row is headers
+            const rows = timetableData.slice(1);
+            
+            const headHTML = headers.map(h => `<th class="px-4 py-3 font-semibold">${h}</th>`).join('');
+            document.getElementById('timetableHeaders').innerHTML = headHTML;
+            
+            const bodyHTML = rows.map(row => {
+                const cells = row.map((cell, index) => {
+                    if(index === 0) return `<td class="px-4 py-3 font-bold bg-slate-50">${cell}</td>`; // Day column
+                    return `<td class="px-4 py-3 ${cell ? 'text-slate-800' : 'text-slate-300'}">${cell || '-'}</td>`;
+                }).join('');
+                return `<tr>${cells}</tr>`;
+            }).join('');
+            document.getElementById('timetableBody').innerHTML = bodyHTML;
+        }
+
+        // Form Submission Handler
+        document.getElementById('logForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Logging...";
+
+            const payload = {
+                action: "markAbsent",
+                u: currentUser,
+                date: document.getElementById('logDate').value,
+                subject_code: document.getElementById('logSubject').value,
+                slots: parseInt(document.getElementById('logSlots').value)
+            };
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                
+                if (result.status === "success") {
+                    alert("Absence logged successfully!");
+                    loadData(); // Refresh the dashboard automatically
+                }
+            } catch (error) {
+                console.error("Error logging absence:", error);
+                alert("Failed to log absence.");
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerText = "Mark Absent";
+            }
+        });
+    </script>
+</body>
+</html>
