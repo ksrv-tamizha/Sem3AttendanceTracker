@@ -42,7 +42,6 @@
             <p class="mt-3 text-sm text-slate-500 font-medium">Syncing database...</p>
         </div>
 
-        <!-- Tab 1: Dashboard -->
         <main id="tab-dashboard" class="tab-content active-tab space-y-4">
             <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="overflow-x-auto">
@@ -65,7 +64,6 @@
             </div>
         </main>
 
-        <!-- Tab 2: Log Absence -->
         <main id="tab-log" class="tab-content hidden-tab">
             <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
                 <h2 class="text-lg font-bold mb-1 text-slate-800">Record Leave</h2>
@@ -103,7 +101,6 @@
             </section>
         </main>
 
-        <!-- Tab 3: Timetable -->
         <main id="tab-timetable" class="tab-content hidden-tab space-y-4">
             <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl">
                 <button onclick="switchSubTab('daily')" id="sub-btn-daily" class="flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-600 shadow-sm transition-all">Daily Schedule</button>
@@ -137,18 +134,36 @@
                 </div>
             </section>
 
-            <section id="sub-tab-overall" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm whitespace-nowrap">
-                        <thead class="bg-slate-100 text-slate-600"><tr id="timetableHeaders"></tr></thead>
-                        <tbody id="timetableBody" class="divide-y divide-slate-200"></tbody>
-                    </table>
-                </div>
-            </section>
+            <div id="sub-tab-overall" class="hidden space-y-4">
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-slate-100 text-slate-600"><tr id="timetableHeaders"></tr></thead>
+                            <tbody id="timetableBody" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </section>
+                
+                <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-slate-100 bg-slate-50">
+                        <h3 class="text-sm font-bold text-slate-800">Subject Legend</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm whitespace-nowrap">
+                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-5 py-3 font-semibold">Code</th>
+                                    <th class="px-5 py-3 font-semibold">Subject Name</th>
+                                </tr>
+                            </thead>
+                            <tbody id="legendTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
         </main>
     </div>
 
-    <!-- Subject Details Modal -->
     <div id="subjectModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all flex flex-col max-h-[90vh]">
             
@@ -206,7 +221,6 @@
                 </div>
             </div>
 
-            <!-- Details List View -->
             <div id="modalDetailsView" class="hidden flex-col p-6 overflow-hidden h-full">
                 <div class="flex items-center space-x-3 mb-4 shrink-0">
                     <button onclick="backToModalMain()" class="p-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-500 transition-colors">
@@ -309,6 +323,7 @@
                 renderDashboardTable(data.subjects);
                 populateDropdowns(data.subjects);
                 renderTimetable(data.timetable);
+                renderSubjectLegend(); // NEW: Render Legend
                 extractDailyClasses();
                 renderLogChecklist(); 
                 
@@ -320,6 +335,18 @@
                 alert("Failed to connect to backend endpoint.");
                 uiLoading.classList.add('hidden');
             }
+        }
+
+        // --- NEW LOGIC: Render Subject Legend ---
+        function renderSubjectLegend() {
+            const tbody = document.getElementById('legendTableBody');
+            if (!tbody) return;
+            tbody.innerHTML = globalSubjects.map(sub => `
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-5 py-3 font-bold text-slate-600">${sub.subject_code}</td>
+                    <td class="px-5 py-3 text-slate-800 font-medium">${sub.subject_name}</td>
+                </tr>
+            `).join('');
         }
 
         async function markDayComplete() {
@@ -716,7 +743,6 @@
             const targetDate = new Date(dateStr);
             const targetDateKey = targetDate.toDateString();
             
-            // Auto-exit edit mode if date is changed
             if (isEditMode) {
                 isEditMode = false;
                 document.getElementById('editModeBtn').innerText = "✏️ Edit Day";
