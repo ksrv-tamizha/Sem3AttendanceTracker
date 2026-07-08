@@ -5,219 +5,608 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Attendance Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-content { transition: opacity 0.3s ease-in-out; }
+        .hidden-tab { display: none; opacity: 0; }
+        .active-tab { display: block; opacity: 1; }
+        .log-checkbox-wrapper input:checked + .check-card { background-color: #eef2ff; border-color: #6366f1; }
+        .log-checkbox-wrapper input:checked + .check-card .check-box { background-color: #6366f1; border-color: #6366f1; }
+        .log-checkbox-wrapper input:checked + .check-card .check-icon { opacity: 1; }
+    </style>
 </head>
-<body class="bg-slate-50 text-slate-800 font-sans p-4 md:p-8">
+<body class="bg-slate-50 text-slate-800 font-sans p-4 md:p-8 pb-20">
 
-    <div class="max-w-5xl mx-auto space-y-8">
+    <div class="max-w-4xl mx-auto space-y-6">
         
-        <header class="flex justify-between items-center bg-slate-900 text-white p-6 rounded-xl shadow-lg">
+        <header class="flex justify-between items-center bg-slate-900 text-white p-5 rounded-2xl shadow-md">
             <div>
-                <h1 class="text-2xl font-bold tracking-tight">Attendance Hub</h1>
-                <p class="text-slate-400 text-sm mt-1">Logged in as: <span id="userNameDisplay" class="font-semibold text-emerald-400">Loading...</span></p>
+                <h1 class="text-xl font-bold tracking-tight">Attendance Hub</h1>
+                <p class="text-slate-400 text-xs mt-1">Workspace: <span id="userNameDisplay" class="font-semibold text-emerald-400">Loading...</span></p>
             </div>
-            <button onclick="loadData()" class="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                Refresh Data
+            <button onclick="loadData()" class="bg-slate-800 hover:bg-slate-700 text-xs font-semibold px-4 py-2 rounded-lg transition-colors border border-slate-700">
+                Sync Data
             </button>
         </header>
 
-        <div id="loadingIndicator" class="text-center py-12 hidden">
-            <div class="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-emerald-500 rounded-full" role="status"></div>
-            <p class="mt-2 text-slate-500">Syncing with Google Sheets...</p>
+        <nav class="flex space-x-2 bg-white p-2 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+            <button onclick="switchTab('dashboard')" id="btn-dashboard" class="flex-1 py-2 px-4 rounded-lg text-sm font-semibold bg-indigo-600 text-white transition-colors">📊 Dashboard</button>
+            <button onclick="switchTab('log')" id="btn-log" class="flex-1 py-2 px-4 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">✍️ Log Absence</button>
+            <button onclick="switchTab('timetable')" id="btn-timetable" class="flex-1 py-2 px-4 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors">📅 Timetable</button>
+        </nav>
+
+        <div id="loadingIndicator" class="text-center py-16 hidden">
+            <div class="animate-spin inline-block w-8 h-8 border-4 border-indigo-500 border-t-transparent rounded-full" role="status"></div>
+            <p class="mt-3 text-sm text-slate-500 font-medium">Syncing database...</p>
         </div>
 
-        <div id="mainContent" class="space-y-8 hidden">
-            
-            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-                <h2 class="text-lg font-bold mb-4">Quick Log Absence</h2>
-                <form id="logForm" class="flex flex-wrap gap-4 items-end">
-                    <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Date</label>
-                        <input type="date" id="logDate" required class="w-full p-2 border rounded-lg bg-slate-50">
+        <main id="tab-dashboard" class="tab-content active-tab space-y-4">
+            <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-100 text-slate-600 border-b border-slate-200">
+                            <tr>
+                                <th class="px-4 py-3 font-semibold">Subject Code</th>
+                                <th class="px-4 py-3 font-semibold">Subject Name</th>
+                                <th class="px-4 py-3 font-semibold text-right">Combined %</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dashboardTableBody" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </section>
+            <div class="mt-6 flex justify-end">
+                <button onclick="markDayComplete()" id="syncDayBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center space-x-2 border border-indigo-700">
+                    <span>✅ Mark Today as Complete</span>
+                </button>
+            </div>
+        </main>
+
+        <main id="tab-log" class="tab-content hidden-tab">
+            <section class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h2 class="text-lg font-bold mb-1 text-slate-800">Record Leave</h2>
+                <p class="text-xs text-slate-500 mb-6">Select a date to view and mark missed periods.</p>
+                <form id="logForm" class="space-y-6">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Select Date</label>
+                        <input type="date" id="logDate" onchange="renderLogChecklist()" required class="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium">
                     </div>
-                    <div class="flex-1 min-w-[200px]">
-                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Subject</label>
-                        <select id="logSubject" required class="w-full p-2 border rounded-lg bg-slate-50">
-                            </select>
+                    
+                    <div id="lockBanner" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-5 text-center">
+                        <p class="text-xl mb-2">🔒</p>
+                        <h3 class="font-bold text-amber-800 mb-1">This day is locked.</h3>
+                        <p class="text-xs text-amber-700 mb-4">It has already been synced to your master attendance database.</p>
+                        <button type="button" onclick="unlockDay()" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-6 rounded-lg text-sm transition-colors">
+                            Unlock to Edit
+                        </button>
                     </div>
-                    <div class="w-24">
-                        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">Slots</label>
-                        <input type="number" id="logSlots" value="1" min="1" max="8" required class="w-full p-2 border rounded-lg bg-slate-50">
+
+                    <div id="absenceControls">
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Missed Periods</label>
+                            <div id="logChecklist" class="space-y-2"></div>
+                        </div>
+                        <div class="mt-6 flex flex-col sm:flex-row gap-3">
+                            <button type="submit" id="confirmAbsenceBtn" class="flex-1 bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-bold transition-colors">
+                                Confirm Absences
+                            </button>
+                            <button type="button" onclick="resyncPastDay()" id="resyncDayBtn" class="hidden flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-colors">
+                                Lock & Sync Day
+                            </button>
+                        </div>
                     </div>
-                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded-lg font-medium transition-colors">
-                        Mark Absent
-                    </button>
                 </form>
             </section>
+        </main>
 
-            <section>
-                <h2 class="text-lg font-bold mb-4">Subject Status</h2>
-                <div id="dashboardGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <main id="tab-timetable" class="tab-content hidden-tab space-y-4">
+            <div class="flex space-x-1 bg-slate-100 p-1 rounded-xl">
+                <button onclick="switchSubTab('today')" id="sub-btn-today" class="flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-600 shadow-sm transition-all">Today's Classes</button>
+                <button onclick="switchSubTab('overall')" id="sub-btn-overall" class="flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-700 transition-all">Overall Matrix</button>
+            </div>
+
+            <section id="sub-tab-today" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h2 class="text-lg font-bold text-slate-800" id="todayTitle">Today's Schedule</h2>
+                        <p class="text-xs text-slate-500">Adapts to ad-hoc changes</p>
                     </div>
+                    <button onclick="toggleEditMode()" id="editModeBtn" class="text-sm font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors">✏️ Edit Day</button>
+                </div>
+                <div id="todayList" class="space-y-2"></div>
+                
+                <div id="addSubjectControls" class="mt-6 pt-4 border-t border-slate-100 hidden">
+                    <label class="block text-xs font-semibold text-slate-500 uppercase mb-2">Modify a Class Slot</label>
+                    <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                        <select id="addTodaySlot" class="w-full sm:w-24 p-2 border border-slate-200 rounded-lg bg-slate-50 text-sm font-bold">
+                            <option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option><option value="4">Slot 4</option>
+                            <option value="5">Slot 5</option><option value="6">Slot 6</option><option value="7">Slot 7</option><option value="8">Slot 8</option>
+                        </select>
+                        <select id="addTodaySubject" class="flex-1 p-2 border border-slate-200 rounded-lg bg-slate-50 text-sm"></select>
+                        <button onclick="addTodayClass()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">Apply</button>
+                    </div>
+                </div>
             </section>
 
-            <section class="bg-white p-6 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
-                <h2 class="text-lg font-bold mb-4">Weekly Timetable</h2>
-                <table class="w-full text-left text-sm whitespace-nowrap">
-                    <thead class="bg-slate-100 text-slate-600">
-                        <tr id="timetableHeaders">
-                            </tr>
-                    </thead>
-                    <tbody id="timetableBody" class="divide-y divide-slate-200">
-                        </tbody>
-                </table>
+            <section id="sub-tab-overall" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm whitespace-nowrap">
+                        <thead class="bg-slate-100 text-slate-600"><tr id="timetableHeaders"></tr></thead>
+                        <tbody id="timetableBody" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
             </section>
+        </main>
+    </div>
 
+    <div id="subjectModal" class="fixed inset-0 bg-slate-900/60 hidden z-50 flex items-center justify-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div><h3 id="modalSubjectCode" class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">CODE</h3><h2 id="modalSubjectName" class="font-bold text-slate-800 text-lg leading-tight">Subject Name</h2></div>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-700 bg-slate-200/50 hover:bg-slate-200 p-2 rounded-full transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-6 space-y-6">
+                <div>
+                    <h4 class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Current Statistics</h4>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><p class="text-xs font-semibold text-slate-500 mb-1">Total Classes</p><p id="modalTotal" class="text-xl font-black text-slate-800">0</p></div>
+                        <div class="bg-emerald-50 p-3 rounded-xl border border-emerald-100"><p class="text-xs font-semibold text-emerald-600 mb-1">Attended</p><p id="modalAttended" class="text-xl font-black text-emerald-700">0</p></div>
+                        <div class="bg-red-50 p-3 rounded-xl border border-red-100"><p class="text-xs font-semibold text-red-600 mb-1">Leave Taken</p><p id="modalLeave" class="text-xl font-black text-red-700">0</p></div>
+                        <div class="bg-indigo-50 p-3 rounded-xl border border-indigo-100"><p class="text-xs font-semibold text-indigo-600 mb-1">Current %</p><p id="modalPercent" class="text-xl font-black text-indigo-700">0%</p></div>
+                    </div>
+                </div>
+                <div class="pt-2">
+                    <div class="flex items-center space-x-2 mb-4"><span class="text-xl">🔮</span><h4 class="font-bold text-slate-800">What-If Calculator</h4></div>
+                    <div class="flex space-x-3 mb-5">
+                        <div class="flex-1"><label class="block text-xs font-semibold text-slate-500 mb-1">Upcoming Classes</label><input type="number" id="calcAddTotal" min="0" value="0" oninput="updateCalculator()" class="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-base font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"></div>
+                        <div class="flex-1"><label class="block text-xs font-semibold text-slate-500 mb-1">Plan to Attend</label><input type="number" id="calcAddAttended" min="0" value="0" oninput="updateCalculator()" class="w-full p-3 border border-slate-200 rounded-xl bg-slate-50 text-base font-semibold focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"></div>
+                    </div>
+                    <div class="bg-slate-900 text-white p-5 rounded-xl flex justify-between items-center shadow-inner">
+                        <div><p class="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1">Projected Result</p><p id="calcProjText" class="text-sm font-semibold text-slate-300">0/0 Total Classes</p></div>
+                        <div id="calcProjPercent" class="text-3xl font-black text-emerald-400">0%</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // === CONFIGURATION ===
-        // PASTE YOUR DEPLOYED WEB APP URL HERE:
         const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyfQlnMQ7ksZv0Y5AEcRrfrdVnIlWVWNgToVX5azZxRKobJ3JMcMRP_L1NNyR4s50djYw/exec";
-        
-        // Setup URL Routing routing
         const urlParams = new URLSearchParams(window.location.search);
         const currentUser = urlParams.get('u') || 'Vicky';
         
-        // DOM Elements
-        const uiLoading = document.getElementById('loadingIndicator');
-        const uiMain = document.getElementById('mainContent');
-        const uiUserName = document.getElementById('userNameDisplay');
-        
-        // Set Date Picker to Today automatically
         document.getElementById('logDate').valueAsDate = new Date();
-        uiUserName.innerText = currentUser;
+        document.getElementById('userNameDisplay').innerText = currentUser;
 
-        // Fetch Data on Load
+        let globalSubjects = [];
+        let globalTimetable = [];
+        let globalOverrides = {};
+        let todayClassesState = [];
+        let isEditMode = false;
+        let activeModalStats = { conducted: 0, attended: 0 };
+
+        function getCombinedStats(baseCode) {
+            const baseSub = globalSubjects.find(s => s.subject_code === baseCode);
+            if (!baseSub) return null;
+            let conducted = Number(baseSub.total_conducted) || 0;
+            let attended = Number(baseSub.total_attended) || 0;
+            let displayName = baseSub.subject_name;
+            const labSub = globalSubjects.find(s => s.subject_code === baseCode + '-Lab');
+            if (labSub) {
+                conducted += Number(labSub.total_conducted) || 0;
+                attended += Number(labSub.total_attended) || 0;
+                displayName += ' <span class="text-xs text-indigo-500 font-bold ml-1">(+ Lab)</span>';
+            }
+            return { code: baseCode, name: displayName, conducted, attended };
+        }
+
+        function getSubjectName(code) {
+            const baseCode = code.replace('-Lab', '');
+            const subjectObj = globalSubjects.find(s => s.subject_code === baseCode);
+            let name = subjectObj ? subjectObj.subject_name : code;
+            if (code.includes('-Lab') && subjectObj) name += " (Lab)";
+            return name;
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => { el.classList.remove('active-tab'); el.classList.add('hidden-tab'); });
+            document.querySelectorAll('nav > button').forEach(btn => btn.className = "flex-1 py-2 px-4 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors");
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden-tab');
+            document.getElementById(`tab-${tabId}`).classList.add('active-tab');
+            document.getElementById(`btn-${tabId}`).className = "flex-1 py-2 px-4 rounded-lg text-sm font-semibold bg-indigo-600 text-white transition-colors";
+        }
+
+        function switchSubTab(subId) {
+            const t = document.getElementById('sub-tab-today'), o = document.getElementById('sub-tab-overall');
+            const bt = document.getElementById('sub-btn-today'), bo = document.getElementById('sub-btn-overall');
+            if(subId === 'today') {
+                t.classList.remove('hidden'); o.classList.add('hidden');
+                bt.className = "flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-600 shadow-sm transition-all";
+                bo.className = "flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-700 transition-all";
+            } else {
+                t.classList.add('hidden'); o.classList.remove('hidden');
+                bt.className = "flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold text-slate-500 hover:text-slate-700 transition-all";
+                bo.className = "flex-1 py-1.5 px-3 rounded-lg text-sm font-semibold bg-white text-indigo-600 shadow-sm transition-all";
+            }
+        }
+
         window.onload = loadData;
 
         async function loadData() {
+            const uiLoading = document.getElementById('loadingIndicator');
+            const tabs = document.querySelectorAll('.tab-content');
             uiLoading.classList.remove('hidden');
-            uiMain.classList.add('hidden');
+            tabs.forEach(tab => tab.style.display = 'none'); 
 
             try {
                 const response = await fetch(`${APPS_SCRIPT_URL}?action=getDashboard&u=${currentUser}`);
                 const data = await response.json();
                 
-                if (data.error) {
-                    alert("Database connection error: " + data.error);
-                    return;
-                }
+                if (data.error) return alert("Database error: " + data.error);
 
-                renderDashboard(data.subjects);
-                populateDropdown(data.subjects);
+                globalSubjects = data.subjects;
+                globalTimetable = data.timetable;
+                globalOverrides = data.dailyOverrides || {};
+
+                renderDashboardTable(data.subjects);
+                populateDropdowns(data.subjects);
                 renderTimetable(data.timetable);
+                extractTodayClasses();
+                renderLogChecklist(); 
                 
                 uiLoading.classList.add('hidden');
-                uiMain.classList.remove('hidden');
+                tabs.forEach(tab => tab.style.display = ''); 
+                if(!document.querySelector('.active-tab')) switchTab('dashboard'); 
+
             } catch (error) {
-                console.error("Fetch error: ", error);
-                alert("Failed to load data. Check console.");
+                alert("Failed to connect to backend endpoint.");
                 uiLoading.classList.add('hidden');
             }
         }
 
-        function renderDashboard(subjects) {
-            const grid = document.getElementById('dashboardGrid');
-            grid.innerHTML = ''; 
-
-            subjects.forEach(sub => {
-                const conducted = Number(sub.total_conducted);
-                const attended = Number(sub.total_attended);
-                
-                // Formulas Matrix
-                let percentage = conducted > 0 ? ((attended / conducted) * 100).toFixed(1) : 100;
-                let safeMargin = conducted > 0 ? Math.floor((attended - (0.75 * conducted)) / 0.75) : 0;
-                
-                // Logic for styling
-                const isSafe = safeMargin >= 0;
-                const statusColor = isSafe ? 'text-emerald-500' : 'text-red-500';
-                const bgColor = isSafe ? 'bg-emerald-50' : 'bg-red-50';
-                const marginText = isSafe 
-                    ? `Safe to bunk: <b>${safeMargin}</b> classes` 
-                    : `Shortage: Need <b>${Math.abs(safeMargin)}</b> classes`;
-
-                const card = `
-                    <div class="p-5 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col justify-between">
-                        <div>
-                            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">${sub.subject_code}</div>
-                            <h3 class="text-sm font-semibold text-slate-800 leading-tight mb-3 truncate" title="${sub.subject_name}">${sub.subject_name}</h3>
-                        </div>
-                        <div class="mt-4 p-3 rounded-lg ${bgColor}">
-                            <div class="flex justify-between items-end mb-1">
-                                <span class="text-2xl font-bold ${statusColor}">${percentage}%</span>
-                                <span class="text-xs text-slate-500">${attended}/${conducted} Attended</span>
-                            </div>
-                            <div class="text-xs text-slate-600 mt-2 pt-2 border-t border-slate-200/50">
-                                ${marginText}
-                            </div>
-                        </div>
-                    </div>
-                `;
-                grid.insertAdjacentHTML('beforeend', card);
-            });
-        }
-
-        function populateDropdown(subjects) {
-            const select = document.getElementById('logSubject');
-            select.innerHTML = '<option value="" disabled selected>Select a class...</option>';
-            subjects.forEach(sub => {
-                select.insertAdjacentHTML('beforeend', `<option value="${sub.subject_code}">${sub.subject_code} - ${sub.subject_name}</option>`);
-            });
-        }
-
-        function renderTimetable(timetableData) {
-            const headers = timetableData[0]; // First row is headers
-            const rows = timetableData.slice(1);
-            
-            const headHTML = headers.map(h => `<th class="px-4 py-3 font-semibold">${h}</th>`).join('');
-            document.getElementById('timetableHeaders').innerHTML = headHTML;
-            
-            const bodyHTML = rows.map(row => {
-                const cells = row.map((cell, index) => {
-                    if(index === 0) return `<td class="px-4 py-3 font-bold bg-slate-50">${cell}</td>`; // Day column
-                    return `<td class="px-4 py-3 ${cell ? 'text-slate-800' : 'text-slate-300'}">${cell || '-'}</td>`;
-                }).join('');
-                return `<tr>${cells}</tr>`;
-            }).join('');
-            document.getElementById('timetableBody').innerHTML = bodyHTML;
-        }
-
-        // Form Submission Handler
-        document.getElementById('logForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const submitBtn = e.target.querySelector('button[type="submit"]');
-            submitBtn.disabled = true;
-            submitBtn.innerText = "Logging...";
-
-            const payload = {
-                action: "markAbsent",
-                u: currentUser,
-                date: document.getElementById('logDate').value,
-                subject_code: document.getElementById('logSubject').value,
-                slots: parseInt(document.getElementById('logSlots').value)
-            };
+        async function markDayComplete() {
+            const btn = document.getElementById('syncDayBtn');
+            btn.disabled = true;
+            btn.innerHTML = `<span>⏳ Processing...</span>`;
 
             try {
                 const response = await fetch(APPS_SCRIPT_URL, {
                     method: 'POST',
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ action: "syncDay", u: currentUser })
                 });
                 const result = await response.json();
                 
-                if (result.status === "success") {
-                    alert("Absence logged successfully!");
-                    loadData(); // Refresh the dashboard automatically
-                }
+                if (result.error) alert(result.error);
+                else alert("Day successfully marked as complete! Database updated.");
+                await loadData();
             } catch (error) {
-                console.error("Error logging absence:", error);
-                alert("Failed to log absence.");
+                alert("Failed to sync the day with the database.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<span>✅ Mark Today as Complete</span>`;
+            }
+        }
+
+        function renderDashboardTable(subjects) {
+            const tbody = document.getElementById('dashboardTableBody');
+            tbody.innerHTML = ''; 
+            subjects.forEach(sub => {
+                if (sub.subject_code.includes('-Lab')) return;
+                const stats = getCombinedStats(sub.subject_code);
+                if(!stats) return;
+
+                let percentage = stats.conducted > 0 ? ((stats.attended / stats.conducted) * 100).toFixed(1) : 100;
+                const statusColor = (stats.conducted > 0 && Math.floor((stats.attended - (0.75 * stats.conducted)) / 0.75) < 0) ? 'text-red-600' : 'text-emerald-600';
+
+                tbody.insertAdjacentHTML('beforeend', `
+                    <tr class="hover:bg-slate-100 transition-colors cursor-pointer" onclick="openSubjectDetails('${sub.subject_code}')">
+                        <td class="px-4 py-4 font-bold text-slate-700">${sub.subject_code}</td>
+                        <td class="px-4 py-4 text-slate-800 font-medium truncate max-w-[200px]">${stats.name}</td>
+                        <td class="px-4 py-4 font-black ${statusColor} text-right">${percentage}%</td>
+                    </tr>
+                `);
+            });
+
+            // Handle the UI state of the "Mark Today Complete" button
+            const syncBtn = document.getElementById('syncDayBtn');
+            const todayKey = new Date().toDateString();
+            if (globalOverrides[todayKey] && globalOverrides[todayKey].isLocked) {
+                syncBtn.disabled = true;
+                syncBtn.className = "bg-slate-200 text-slate-500 font-bold py-3 px-6 rounded-xl shadow-sm cursor-not-allowed flex items-center space-x-2 border border-slate-300";
+                syncBtn.innerHTML = `<span>🔒 Today is Synced & Locked</span>`;
+            } else {
+                syncBtn.disabled = false;
+                syncBtn.className = "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center space-x-2 border border-indigo-700";
+                syncBtn.innerHTML = `<span>✅ Mark Today as Complete</span>`;
+            }
+        }
+
+        function openSubjectDetails(code) {
+            const stats = getCombinedStats(code);
+            if(!stats) return;
+            activeModalStats = { conducted: stats.conducted, attended: stats.attended };
+            const percent = stats.conducted > 0 ? ((stats.attended / stats.conducted) * 100).toFixed(1) : 100;
+            
+            document.getElementById('modalSubjectCode').innerText = stats.code;
+            document.getElementById('modalSubjectName').innerHTML = stats.name;
+            document.getElementById('modalTotal').innerText = stats.conducted;
+            document.getElementById('modalAttended').innerText = stats.attended;
+            document.getElementById('modalLeave').innerText = stats.conducted - stats.attended;
+            document.getElementById('modalPercent').innerText = `${percent}%`;
+            
+            document.getElementById('calcAddTotal').value = '';
+            document.getElementById('calcAddAttended').value = '';
+            updateCalculator();
+            document.getElementById('subjectModal').classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('subjectModal').classList.add('hidden'); }
+
+        function updateCalculator() {
+            const addTotal = Number(document.getElementById('calcAddTotal').value) || 0;
+            const addAttended = Number(document.getElementById('calcAddAttended').value) || 0;
+            if (addAttended > addTotal) { document.getElementById('calcAddAttended').value = addTotal; return updateCalculator(); }
+            const newTotal = activeModalStats.conducted + addTotal;
+            const newAttended = activeModalStats.attended + addAttended;
+            const newPercent = newTotal > 0 ? ((newAttended / newTotal) * 100).toFixed(1) : 100;
+            
+            document.getElementById('calcProjText').innerText = `${newAttended} / ${newTotal} Total Classes`;
+            const pctEl = document.getElementById('calcProjPercent');
+            pctEl.innerText = `${newPercent}%`;
+            pctEl.className = newPercent >= 75 ? "text-3xl font-black text-emerald-400" : "text-3xl font-black text-red-400";
+        }
+
+        document.getElementById('subjectModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+        function populateDropdowns(subjects) {
+            const selectAdd = document.getElementById('addTodaySubject');
+            let options = '<option value="" disabled selected>Select subject...</option>';
+            subjects.forEach(sub => options += `<option value="${sub.subject_code}">${sub.subject_code} - ${sub.subject_name}</option>`);
+            selectAdd.innerHTML = options;
+        }
+
+        function renderLogChecklist() {
+            const listDiv = document.getElementById('logChecklist');
+            const dateStr = document.getElementById('logDate').value;
+            const lockBanner = document.getElementById('lockBanner');
+            const absenceControls = document.getElementById('absenceControls');
+            const resyncBtn = document.getElementById('resyncDayBtn');
+
+            if (!globalTimetable.length || !dateStr) return;
+
+            const dateObj = new Date(dateStr);
+            const dateKey = dateObj.toDateString();
+            const dayIndex = dateObj.getDay(); 
+            const isToday = dateKey === new Date().toDateString();
+
+            if(dayIndex === 0 || dayIndex === 6) {
+                lockBanner.classList.add('hidden');
+                absenceControls.classList.remove('hidden');
+                return listDiv.innerHTML = `<div class="p-6 text-center text-emerald-600 font-medium bg-emerald-50 rounded-xl border border-emerald-100">No classes on weekends! Enjoy your day off. 🌴</div>`;
+            }
+
+            let isLocked = false;
+            let classesToRender = [];
+            
+            if (globalOverrides[dateKey]) {
+                isLocked = globalOverrides[dateKey].isLocked;
+                globalOverrides[dateKey].slots.forEach((code, idx) => {
+                    if (code && code.trim() !== "") {
+                        classesToRender.push({ code: code, name: getSubjectName(code), slotLabel: `Period ${idx+1}` });
+                    }
+                });
+            } else {
+                const scheduleRow = globalTimetable[dayIndex];
+                for(let i = 1; i < scheduleRow.length; i++) {
+                    if(scheduleRow[i] && scheduleRow[i].trim() !== "") classesToRender.push({ code: scheduleRow[i], name: getSubjectName(scheduleRow[i]), slotLabel: `Period ${i}` });
+                }
+            }
+
+            if (isLocked) {
+                lockBanner.classList.remove('hidden');
+                absenceControls.classList.add('hidden');
+            } else {
+                lockBanner.classList.add('hidden');
+                absenceControls.classList.remove('hidden');
+                if (!isToday && new Date(dateStr) < new Date()) {
+                    resyncBtn.classList.remove('hidden');
+                } else {
+                    resyncBtn.classList.add('hidden');
+                }
+            }
+
+            if(classesToRender.length === 0) return listDiv.innerHTML = `<div class="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">No classes scheduled.</div>`;
+
+            listDiv.innerHTML = classesToRender.map(cls => `
+                <label class="relative flex items-center cursor-pointer log-checkbox-wrapper group">
+                    <input type="checkbox" name="absentSlot" value="${cls.code}" class="sr-only">
+                    <div class="check-card flex items-center w-full p-4 border border-slate-200 rounded-xl bg-white hover:bg-slate-50 transition-all shadow-sm">
+                        <div class="check-box w-5 h-5 border-2 border-slate-300 rounded flex items-center justify-center mr-4 transition-colors">
+                            <svg class="check-icon w-3 h-3 text-white opacity-0 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">${cls.slotLabel} &bull; ${cls.code}</p>
+                            <p class="font-bold text-slate-800">${cls.name}</p>
+                        </div>
+                    </div>
+                </label>
+            `).join('');
+        }
+
+        async function unlockDay() {
+            const dateVal = document.getElementById('logDate').value;
+            if(!confirm("This will reverse the sync math for this day so you can edit absences. Proceed?")) return;
+
+            document.getElementById('lockBanner').innerHTML = `<p class="font-bold text-amber-800 py-3">⏳ Unlocking database...</p>`;
+            
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST', body: JSON.stringify({ action: "unlockDay", u: currentUser, date: dateVal })
+                });
+                const result = await response.json();
+                
+                if (result.error) alert(result.error);
+                else alert("Day unlocked! You can now log missing absences.");
+                
+                await loadData();
+                renderLogChecklist(); 
+            } catch (error) {
+                alert("Failed to unlock day.");
+            }
+        }
+
+        async function resyncPastDay() {
+            const dateVal = document.getElementById('logDate').value;
+            const btn = document.getElementById('resyncDayBtn');
+            btn.disabled = true;
+            btn.innerText = "⏳ Syncing...";
+
+            try {
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST', body: JSON.stringify({ action: "syncDay", u: currentUser, date: dateVal })
+                });
+                const result = await response.json();
+                
+                if (result.error) alert(result.error);
+                else alert("Day has been successfully recalculated and locked!");
+                
+                await loadData();
+                renderLogChecklist(); 
+            } catch (error) {
+                alert("Failed to re-sync day.");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Lock & Sync Day";
+            }
+        }
+
+        document.getElementById('logForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const checkboxes = document.querySelectorAll('input[name="absentSlot"]:checked');
+            if(checkboxes.length === 0) return alert("Please select at least one period.");
+
+            const submitBtn = document.getElementById('confirmAbsenceBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerText = "Syncing Database...";
+
+            const dateVal = document.getElementById('logDate').value;
+            const absenceMap = {};
+            checkboxes.forEach(cb => absenceMap[cb.value] = (absenceMap[cb.value] || 0) + 1);
+
+            try {
+                const promises = Object.keys(absenceMap).map(code => fetch(APPS_SCRIPT_URL, {
+                    method: 'POST', body: JSON.stringify({ action: "markAbsent", u: currentUser, date: dateVal, subject_code: code, slots: absenceMap[code] })
+                }));
+                await Promise.all(promises);
+                alert("Absences recorded successfully!");
+                checkboxes.forEach(cb => cb.checked = false);
+                await loadData(); 
+                switchTab('dashboard'); 
+            } catch (error) {
+                alert("Failed to submit entries.");
             } finally {
                 submitBtn.disabled = false;
-                submitBtn.innerText = "Mark Absent";
+                submitBtn.innerText = "Confirm Absences";
             }
         });
+
+        function renderTimetable(timetableData) {
+            document.getElementById('timetableHeaders').innerHTML = timetableData[0].map((h, idx) => `<th class="px-4 py-3 font-semibold ${idx === 0 ? 'sticky left-0 bg-slate-100 z-10' : ''}">${h}</th>`).join('');
+            document.getElementById('timetableBody').innerHTML = timetableData.slice(1).map(row => `
+                <tr class="hover:bg-slate-50/50">${row.map((cell, index) => index === 0 ? `<td class="px-4 py-3 font-bold bg-slate-50 sticky left-0 z-10 border-r border-slate-200">${cell}</td>` : `<td class="px-4 py-3 ${cell ? 'text-slate-800 font-medium' : 'text-slate-300'}">${cell || '—'}</td>`).join('')}</tr>
+            `).join('');
+        }
+
+        function extractTodayClasses() {
+            const todayStr = new Date().toDateString();
+            todayClassesState = [];
+            let isTodayLocked = false;
+            
+            if (globalOverrides[todayStr]) {
+                isTodayLocked = globalOverrides[todayStr].isLocked;
+                globalOverrides[todayStr].slots.forEach((code, i) => {
+                    if (code && code.trim() !== "") todayClassesState.push({ id: Date.now() + i, code: code, slot: i + 1 });
+                });
+            } else {
+                const dayIndex = new Date().getDay();
+                if (dayIndex >= 1 && dayIndex <= 5) {
+                    const matrixRow = globalTimetable[dayIndex];
+                    for (let i = 1; i < matrixRow.length; i++) { 
+                        if (matrixRow[i] && matrixRow[i].trim() !== "") todayClassesState.push({ id: Date.now() + i, code: matrixRow[i], slot: i });
+                    }
+                }
+            }
+            
+            const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+            const titleEl = document.getElementById('todayTitle');
+            const editBtn = document.getElementById('editModeBtn');
+            
+            if (isTodayLocked) {
+                titleEl.innerHTML = `${days[new Date().getDay()]}'s Schedule <span class="ml-2 text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded uppercase tracking-wider">Locked</span>`;
+                editBtn.classList.add('hidden');
+            } else {
+                titleEl.innerText = `${days[new Date().getDay()]}'s Schedule`;
+                editBtn.classList.remove('hidden');
+            }
+
+            todayClassesState.sort((a, b) => a.slot - b.slot);
+            renderTodayList();
+        }
+
+        async function toggleEditMode() {
+            const btn = document.getElementById('editModeBtn');
+            const addControls = document.getElementById('addSubjectControls');
+            
+            if(!isEditMode) {
+                isEditMode = true;
+                btn.innerText = "✅ Save Changes"; 
+                btn.className = "text-sm font-bold text-white bg-emerald-500 px-3 py-1.5 rounded-lg hover:bg-emerald-600 transition-colors";
+                addControls.classList.remove('hidden');
+            } else {
+                isEditMode = false;
+                btn.innerText = "⏳ Saving..."; btn.disabled = true;
+                addControls.classList.add('hidden');
+                
+                const slotsArr = ["", "", "", "", "", "", "", ""];
+                todayClassesState.forEach(c => { if(c.slot >= 1 && c.slot <= 8) slotsArr[c.slot - 1] = c.code; });
+
+                await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST', body: JSON.stringify({ action: "saveDaily", date: new Date().toDateString(), slotsArr: slotsArr })
+                });
+                
+                await loadData(); 
+                btn.disabled = false;
+                btn.innerText = "✏️ Edit Day"; 
+                btn.className = "text-sm font-semibold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors";
+            }
+            renderTodayList();
+        }
+
+        function removeTodayClass(id) { todayClassesState = todayClassesState.filter(c => c.id !== id); renderTodayList(); }
+        function addTodayClass() {
+            const code = document.getElementById('addTodaySubject').value;
+            const slot = parseInt(document.getElementById('addTodaySlot').value);
+            if(!code) return alert("Select a subject to add.");
+            todayClassesState = todayClassesState.filter(c => c.slot !== slot);
+            todayClassesState.push({ id: Date.now(), code: code, slot: slot });
+            todayClassesState.sort((a, b) => a.slot - b.slot);
+            renderTodayList(); 
+        }
+
+        function renderTodayList() {
+            const listDiv = document.getElementById('todayList');
+            if (todayClassesState.length === 0) return listDiv.innerHTML = `<div class="p-6 text-center text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-300">No classes found for today. Enjoy! 🎉</div>`;
+            listDiv.innerHTML = todayClassesState.map(cls => `
+                <div class="flex justify-between items-center p-3 rounded-xl border ${isEditMode ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 bg-slate-50'} transition-all">
+                    <div class="flex items-center space-x-4">
+                        <span class="w-10 h-10 flex items-center justify-center rounded-lg bg-white shadow-sm text-xs font-bold text-slate-500 border border-slate-200">S${cls.slot}</span>
+                        <div><p class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">${cls.code}</p><p class="font-bold text-slate-800">${getSubjectName(cls.code)}</p></div>
+                    </div>
+                    ${isEditMode ? `<button onclick="removeTodayClass(${cls.id})" class="text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 p-2 rounded-lg text-xs font-bold transition-colors">✕ Cancel</button>` : ``}
+                </div>
+            `).join('');
+        }
     </script>
 </body>
 </html>
