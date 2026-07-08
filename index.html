@@ -488,35 +488,48 @@
             }
         }
 
-        document.getElementById('logForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const checkboxes = document.querySelectorAll('input[name="absentSlot"]:checked');
-            if(checkboxes.length === 0) return alert("Please select at least one period.");
+       document.getElementById('logForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const checkboxes = document.querySelectorAll('input[name="absentSlot"]:checked');
+    if(checkboxes.length === 0) return alert("Please select at least one period.");
 
-            const submitBtn = document.getElementById('confirmAbsenceBtn');
-            submitBtn.disabled = true;
-            submitBtn.innerText = "Syncing Database...";
+    const submitBtn = document.getElementById('confirmAbsenceBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerText = "Syncing Database...";
 
-            const dateVal = document.getElementById('logDate').value;
-            const absenceMap = {};
-            checkboxes.forEach(cb => absenceMap[cb.value] = (absenceMap[cb.value] || 0) + 1);
+    const dateVal = document.getElementById('logDate').value;
+    const absenceMap = {};
+    
+    // Box up all absences into a single package
+    checkboxes.forEach(cb => absenceMap[cb.value] = (absenceMap[cb.value] || 0) + 1);
 
-            try {
-                const promises = Object.keys(absenceMap).map(code => fetch(APPS_SCRIPT_URL, {
-                    method: 'POST', body: JSON.stringify({ action: "markAbsent", u: currentUser, date: dateVal, subject_code: code, slots: absenceMap[code] })
-                }));
-                await Promise.all(promises);
-                alert("Absences recorded successfully!");
-                checkboxes.forEach(cb => cb.checked = false);
-                await loadData(); 
-                switchTab('dashboard'); 
-            } catch (error) {
-                alert("Failed to submit entries.");
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.innerText = "Confirm Absences";
-            }
+    try {
+        // Send exactly ONE request to the server
+        const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST', 
+            body: JSON.stringify({ 
+                action: "markAbsentBatch", 
+                u: currentUser, 
+                date: dateVal, 
+                absences: absenceMap 
+            })
         });
+        
+        const result = await response.json();
+        if (result.error) throw new Error(result.error);
+        
+        alert("Absences recorded successfully!");
+        checkboxes.forEach(cb => cb.checked = false);
+        await loadData(); 
+        switchTab('dashboard'); 
+    } catch (error) {
+        alert("Failed to submit entries. The server might be busy, please check your log tab before retrying.");
+        console.error(error);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Confirm Absences";
+    }
+});
 
         function renderTimetable(timetableData) {
             document.getElementById('timetableHeaders').innerHTML = timetableData[0].map((h, idx) => `<th class="px-4 py-3 font-semibold ${idx === 0 ? 'sticky left-0 bg-slate-100 z-10' : ''}">${h}</th>`).join('');
