@@ -182,6 +182,7 @@
         let globalSubjects = [];
         let globalTimetable = [];
         let globalOverrides = {};
+        let globalLockedDays = {};
         let todayClassesState = [];
         let isEditMode = false;
         let activeModalStats = { conducted: 0, attended: 0 };
@@ -248,6 +249,7 @@
                 globalSubjects = data.subjects;
                 globalTimetable = data.timetable;
                 globalOverrides = data.dailyOverrides || {};
+                globalLockedDays = data.lockedDays || {}; 
 
                 renderDashboardTable(data.subjects);
                 populateDropdowns(data.subjects);
@@ -310,7 +312,7 @@
 
             const syncBtn = document.getElementById('syncDayBtn');
             const todayKey = new Date().toDateString();
-            if (globalOverrides[todayKey] && globalOverrides[todayKey].isLocked) {
+            if (globalLockedDays[todayKey] === true) {
                 syncBtn.disabled = true;
                 syncBtn.className = "bg-slate-200 text-slate-500 font-bold py-3 px-6 rounded-xl shadow-sm cursor-not-allowed flex items-center space-x-2 border border-slate-300";
                 syncBtn.innerHTML = `<span>🔒 Today is Synced & Locked</span>`;
@@ -385,12 +387,11 @@
                 return listDiv.innerHTML = `<div class="p-6 text-center text-emerald-600 font-medium bg-emerald-50 rounded-xl border border-emerald-100">No classes on weekends! Enjoy your day off. 🌴</div>`;
             }
 
-            let isLocked = false;
+            let isLocked = globalLockedDays[dateKey] === true;
             let classesToRender = [];
             
             if (globalOverrides[dateKey]) {
-                isLocked = globalOverrides[dateKey].isLocked;
-                globalOverrides[dateKey].slots.forEach((code, idx) => {
+                globalOverrides[dateKey].forEach((code, idx) => {
                     if (code && code.trim() !== "") {
                         classesToRender.push({ code: code, name: getSubjectName(code), slotLabel: `Period ${idx+1}` });
                     }
@@ -527,11 +528,10 @@
         function extractTodayClasses() {
             const todayStr = new Date().toDateString();
             todayClassesState = [];
-            let isTodayLocked = false;
+            let isTodayLocked = globalLockedDays[todayStr] === true;
             
             if (globalOverrides[todayStr]) {
-                isTodayLocked = globalOverrides[todayStr].isLocked;
-                globalOverrides[todayStr].slots.forEach((code, i) => {
+                globalOverrides[todayStr].forEach((code, i) => {
                     if (code && code.trim() !== "") todayClassesState.push({ id: Date.now() + i, code: code, slot: i + 1 });
                 });
             } else {
@@ -578,7 +578,7 @@
                 todayClassesState.forEach(c => { if(c.slot >= 1 && c.slot <= 8) slotsArr[c.slot - 1] = c.code; });
 
                 await fetch(APPS_SCRIPT_URL, {
-                    method: 'POST', body: JSON.stringify({ action: "saveDaily", date: new Date().toDateString(), slotsArr: slotsArr })
+                    method: 'POST', body: JSON.stringify({ action: "saveDaily", date: new Date().toDateString(), slotsArr: slotsArr, u: currentUser })
                 });
                 
                 await loadData(); 
